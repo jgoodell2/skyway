@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CASE to IEEE 1484.20.3 Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+        textarea {
+            width: 100%;
+            height: 300px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>CASE to IEEE 1484.20.3 Converter</h2>
+<p>Select a CASE JSON file to convert:</p>
+
+<input type="file" id="caseFile" accept=".json">
+<br><br>
+<button onclick="convertCaseToIEEE()">Convert</button>
+
+<h3>Converted IEEE 1484.20.3 JSON-LD:</h3>
+<textarea id="output" readonly></textarea>
+<br>
+<button id="downloadBtn" style="display:none;" onclick="downloadJSON()">Download JSON</button>
+
+<script>
+    let ieeeData;
+
+    function convertCaseToIEEE() {
+        const fileInput = document.getElementById('caseFile');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('Please select a file!');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const caseData = JSON.parse(e.target.result);
+            ieeeData = parseCaseToIEEE(caseData);
+            document.getElementById('output').textContent = JSON.stringify(ieeeData, null, 2);
+            document.getElementById('downloadBtn').style.display = 'block';
+        };
+        reader.readAsText(file);
+    }
+
+    function parseCaseToIEEE(caseData) {
+        const ieeeData = {
+            "@context": "https://standards.ieee.org/1484.20.3/context.jsonld",
+            "@graph": []
+        };
+
+        // Assuming caseData.CFItems is an array of competencies in CASE format
+        const competencies = caseData.CFItems;
+        
+        competencies.forEach(item => {
+            const ieeeCompetency = {
+                "@type": "CompetencyDefinition",
+                "@id": item.uri,
+                "scd:referenceCode": item.humanCodingScheme || "",
+                "scd:competencyStatement": item.fullStatement || "",
+                "ceasn:educationLevel": item.educationLevel || []
+            };
+            ieeeData["@graph"].push(ieeeCompetency);
+        });
+
+        return ieeeData;
+    }
+
+    function downloadJSON() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(ieeeData, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", "ieee_1484_20_3_converted.json");
+        downloadAnchor.click();
+    }
+</script>
+
+</body>
+</html>
