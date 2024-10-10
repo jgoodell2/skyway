@@ -58,27 +58,43 @@
             "@graph": []
         };
 
+        const framework = caseData.CFDocument;
         const competencies = caseData.CFItems;
         const associations = caseData.CFAssociations || [];
 
         // Create a map of competencies for quick lookup by identifier
         const competencyMap = {};
+
+        //Add framework to the map
+        competencyMap[framework.uri] = {
+            "@type": "CompetencyDefinition",
+            "@id": framework.uri,
+            "scd:competencyStatement": framework.title || "",
+            "scd:name": framework.title || "",
+            "creator": framework.creator || "",
+            "scd:referenceCode": framework.humanCodingScheme || ""
+        };
+        ieeeData["@graph"].push(competencyMap[framework.uri]);
+
+        //Add competencies to map
         competencies.forEach(item => {
-            competencyMap[item.identifier] = {
+            competencyMap[item.uri] = {
                 "@type": "CompetencyDefinition",
                 "@id": item.uri,
                 "scd:referenceCode": item.humanCodingScheme || "",
                 "scd:competencyStatement": item.fullStatement || "",
                 "ceasn:educationLevel": item.educationLevel || []
             };
-            ieeeData["@graph"].push(competencyMap[item.identifier]);
+            ieeeData["@graph"].push(competencyMap[item.uri]);
         });
 
         // Process associations to build parent-child relationships
         associations.forEach(assoc => {
-            const originId = assoc.originNodeURI.identifier;
-            const destinationId = assoc.destinationNodeURI.identifier;
+            const originId = assoc.originNodeURI.uri;
+            const destinationId = assoc.destinationNodeURI.uri;
             const associationType = assoc.associationType;
+
+            console.log('Origin: ' + originId + ' assoc: ' + associationType + ' dest: ' + destinationId);
 
             if (associationType === "isChildOf") {
                 // Child (origin) is part of the parent (destination)
