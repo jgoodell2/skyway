@@ -18,7 +18,7 @@
 </head>
 <body>
 
-<h2>CASE to IEEE 1484.20.3 Converter</h2>
+<h2>CASE to IEEE 1484.20.3 SCD Converter with Hierarchy</h2>
 <p>Select a CASE JSON file to convert:</p>
 
 <input type="file" id="caseFile" accept=".json">
@@ -58,9 +58,9 @@
             "@graph": []
         };
 
-        // Assuming caseData.CFItems is an array of competencies in CASE format
         const competencies = caseData.CFItems;
-        
+        const parentChildMap = buildParentChildMap(competencies);
+
         competencies.forEach(item => {
             const ieeeCompetency = {
                 "@type": "CompetencyDefinition",
@@ -69,17 +69,57 @@
                 "scd:competencyStatement": item.fullStatement || "",
                 "ceasn:educationLevel": item.educationLevel || []
             };
+
+            // Check for children (hasMember)
+            if (parentChildMap.parents[item.identifier]) {
+                ieeeCompetency["scd:hasMember"] = parentChildMap.parents[item.identifier].map(childId => {
+                    return caseData.CFItems.find(c => c.identifier === childId).uri;
+                });
+            }
+
+            // Check for parent (isMemberOf)
+            const parent = parentChildMap.children[item.identifier];
+            if (parent) {
+                ieeeCompetency["scd:isMemberOf"] = parent.uri;
+            }
+
             ieeeData["@graph"].push(ieeeCompetency);
         });
 
         return ieeeData;
     }
 
+    // Function to build the parent-child relationship map
+    function buildParentChildMap(competencies) {
+        const parentMap = {}; // Maps parents to their children
+        const childMap = {}; // Maps children to their parents
+
+        competencies.forEach(item => {
+            // Assume each item could have child/parent relationships defined in `hasChild` or `isChildOf`
+            if (item.hasChild) {
+                item.hasChild.forEach(childId => {
+                    if (!parentMap[item.identifier]) {
+                        parentMap[item.identifier] = [];
+                    }
+                    parentMap[item.identifier].push(childId);
+
+                    // Also map child to its parent
+                    childMap[childId] = item;
+                });
+            }
+        });
+
+        return {
+            parents: parentMap,
+            children: childMap
+        };
+    }
+
     function downloadJSON() {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(ieeeData, null, 2));
         const downloadAnchor = document.createElement('a');
         downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", "ieee_1484_20_3_converted.json");
+        downloadAnchor.setAttribute("download", "ieee_1484_20_3_converted_with_hierarchy.json");
         downloadAnchor.click();
     }
 </script>
