@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CASE to IEEE 1484.20.3 SCD Converter</title>
+    <title>CASE to IEEE 1484.20.3 SCD Converter with CFAssociations</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -18,7 +18,7 @@
 </head>
 <body>
 
-<h2>CASE to IEEE 1484.20.3 SCD Converter with Hierarchy</h2>
+<h2>CASE to IEEE 1484.20.3 Converter with Hierarchy</h2>
 <p>Select a CASE JSON file to convert:</p>
 
 <input type="file" id="caseFile" accept=".json">
@@ -59,60 +59,43 @@
         };
 
         const competencies = caseData.CFItems;
-        const parentChildMap = buildParentChildMap(competencies);
+        const associations = caseData.CFAssociations || [];
 
+        // Create a map of competencies for quick lookup by identifier
+        const competencyMap = {};
         competencies.forEach(item => {
-            const ieeeCompetency = {
+            competencyMap[item.identifier] = {
                 "@type": "CompetencyDefinition",
                 "@id": item.uri,
                 "scd:referenceCode": item.humanCodingScheme || "",
                 "scd:competencyStatement": item.fullStatement || "",
                 "ceasn:educationLevel": item.educationLevel || []
             };
+            ieeeData["@graph"].push(competencyMap[item.identifier]);
+        });
 
-            // Check for children (hasMember)
-            if (parentChildMap.parents[item.identifier]) {
-                ieeeCompetency["scd:hasMember"] = parentChildMap.parents[item.identifier].map(childId => {
-                    return caseData.CFItems.find(c => c.identifier === childId).uri;
-                });
+        // Process associations to build parent-child relationships
+        associations.forEach(assoc => {
+            const originId = assoc.originNodeURI.identifier;
+            const destinationId = assoc.destinationNodeURI.identifier;
+            const associationType = assoc.associationType;
+
+            if (associationType === "isChildOf") {
+                // Child (origin) is part of the parent (destination)
+                if (!competencyMap[originId]["scd:isMemberOf"]) {
+                    competencyMap[originId]["scd:isMemberOf"] = [];
+                }
+                competencyMap[originId]["scd:isMemberOf"].push(competencyMap[destinationId]["@id"]);
+                
+                // Add "hasMember" to the parent
+                if (!competencyMap[destinationId]["scd:hasMember"]) {
+                    competencyMap[destinationId]["scd:hasMember"] = [];
+                }
+                competencyMap[destinationId]["scd:hasMember"].push(competencyMap[originId]["@id"]);
             }
-
-            // Check for parent (isMemberOf)
-            const parent = parentChildMap.children[item.identifier];
-            if (parent) {
-                ieeeCompetency["scd:isMemberOf"] = parent.uri;
-            }
-
-            ieeeData["@graph"].push(ieeeCompetency);
         });
 
         return ieeeData;
-    }
-
-    // Function to build the parent-child relationship map
-    function buildParentChildMap(competencies) {
-        const parentMap = {}; // Maps parents to their children
-        const childMap = {}; // Maps children to their parents
-
-        competencies.forEach(item => {
-            // Assume each item could have child/parent relationships defined in `hasChild` or `isChildOf`
-            if (item.hasChild) {
-                item.hasChild.forEach(childId => {
-                    if (!parentMap[item.identifier]) {
-                        parentMap[item.identifier] = [];
-                    }
-                    parentMap[item.identifier].push(childId);
-
-                    // Also map child to its parent
-                    childMap[childId] = item;
-                });
-            }
-        });
-
-        return {
-            parents: parentMap,
-            children: childMap
-        };
     }
 
     function downloadJSON() {
